@@ -2,7 +2,7 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/highgui/highgui.hpp"
-//#include "opencv2/nonfree/nonfree.hpp"
+#include "opencv2/nonfree/nonfree.hpp"
 
 using namespace cv;
 
@@ -28,6 +28,11 @@ int main(int argc, char** argv)
 	// draw keypoints
 	Mat imgKeypoints1;
 	drawKeypoints( img1, keypoints1, imgKeypoints1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+
+	// compute descriptors
+    SiftDescriptorExtractor extractor;
+    Mat descriptors1;
+    extractor.compute(img1, keypoints1, descriptors1);
 
 	// show detected (drawn) keypoints
 	imshow("Keypoints 1", imgKeypoints1 );
