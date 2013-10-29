@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <ctime>
 #include "opencv2/core/core.hpp"
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -13,6 +14,8 @@ using namespace cv;
 
 int main(int argc, char** argv)
 {
+	clock_t startTime = clock();
+
     if (argc != 3)
     {
 		cerr << "program <train.txt> <val.txt>" << endl;
@@ -27,7 +30,7 @@ int main(int argc, char** argv)
 	ifstream file(argv[1], ios::in);
 	string file_name, contains;
 	const int max_images_train = 200;
-	const int max_images_val = 20;
+	const int max_images_val = 50;
 	int count = 0;
 
 	if (!file)
@@ -51,13 +54,18 @@ int main(int argc, char** argv)
 	count = 0;
 	while (file >> file_name >> contains)
 	{
-	count++;
-	if (count > max_images_val) break;
-	val.push_back(path + file_name + ".jpg");
-	val_evaluation.push_back(contains);
+		count++;
+		if (count > max_images_val) break;
+		val.push_back(path + file_name + ".jpg");
+		val_evaluation.push_back(contains);
 	}
 
 	file.close();
+
+	clock_t endTime = clock();
+	clock_t clockTicksTaken = endTime - startTime;
+	double timeInMinutes = (clockTicksTaken / (double) CLOCKS_PER_SEC) / 60;
+	cout << "Time taken: " << timeInMinutes << " minutes" << endl;
 
 	FastFeatureDetector detector(15);
 	vector<KeyPoint> keypoints;
@@ -91,11 +99,11 @@ int main(int argc, char** argv)
 
 	// creating vocabulary
 	cout << "Clustering..." << endl;
-	BOWKMeansTrainer bowtrainer(20); //num clusters
+	BOWKMeansTrainer bowtrainer(1000); // num clusters
 	bowtrainer.add(training_descriptors);
 	Mat vocabulary = bowtrainer.cluster();
 
-	//ofstream myfile;
+	// ofstream myfile;
 	myfile.open("vocabulary.txt");
 	myfile << vocabulary;
 	myfile.close();
@@ -121,7 +129,7 @@ int main(int argc, char** argv)
 		detector.detect(img, keypoints); // detect keypoints
 		bowide.compute(img, keypoints, response_hist);
 		if (classes_training_data.count(train_evaluation[pos]) == 0)
-		{ //not yet created...create class 1 or -1
+		{ // not yet created...create class 1 or -1
 			classes_training_data[train_evaluation[pos]].create(0,response_hist.cols,response_hist.type());
 			classes_names.push_back(train_evaluation[pos]);
 		}
@@ -146,12 +154,12 @@ int main(int argc, char** argv)
 		Mat samples(0,response_hist.cols,response_hist.type());
 		Mat labels(0,1,CV_32FC1);
 
-		//copy class samples and label
+		// copy class samples and label
 		samples.push_back(classes_training_data[class_]);
 		Mat class_label = Mat::ones(classes_training_data[class_].rows, 1, CV_32FC1);
 		labels.push_back(class_label);
 
-		//copy rest samples and label
+		// copy rest samples and label
 		for (map<string,Mat>::iterator it1 = classes_training_data.begin(); it1 != classes_training_data.end(); ++it1) {
 			string not_class_ = (*it1).first;
 			if (not_class_.compare(class_) == 0) continue; //skip class itself
@@ -166,9 +174,11 @@ int main(int argc, char** argv)
 		classes_classifiers[class_].train(samples_32f,labels);		
 	}
 
+	// classification
+	myfile.open("results.txt");
 	for (size_t pos = 0; pos < val.size(); pos++)
 	{
-		cout << pos << endl;
+		myfile << pos << endl;
 		img = imread(val[pos]);
 		if (img.empty())
 		{
@@ -178,13 +188,14 @@ int main(int argc, char** argv)
 		detector.detect(img, keypoints); // detect keypoints
 		bowide.compute(img, keypoints, response_hist);
 
-		float minf = FLT_MAX; string minclass;
 		for (map<string,CvSVM>::iterator it = classes_classifiers.begin(); it != classes_classifiers.end(); ++it) {
 			float res = (*it).second.predict(response_hist,false);
-			cout << "class: " << (*it).first << ", response: " << res << endl;
+			myfile << "class: " << (*it).first << ", response: " << res << endl;
 		}
-		cout << "------------------------" << endl;
+		myfile << "------------------------" << endl;
 	}
+
+	
 
     /*
 	// detect keypoints
