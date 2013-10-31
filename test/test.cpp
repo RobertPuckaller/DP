@@ -62,11 +62,6 @@ int main(int argc, char** argv)
 
 	file.close();
 
-	clock_t endTime = clock();
-	clock_t clockTicksTaken = endTime - startTime;
-	double timeInMinutes = (clockTicksTaken / (double) CLOCKS_PER_SEC) / 60;
-	cout << "Time taken: " << timeInMinutes << " minutes" << endl;
-
 	FastFeatureDetector detector(15);
 	vector<KeyPoint> keypoints;
 	Ptr<DescriptorExtractor > extractor(new SiftDescriptorExtractor());
@@ -194,8 +189,11 @@ int main(int argc, char** argv)
 		}
 		myfile << "------------------------" << endl;
 	}
-
 	
+	clock_t endTime = clock();
+	clock_t clockTicksTaken = endTime - startTime;
+	double timeInMinutes = (clockTicksTaken / (double) CLOCKS_PER_SEC) / 60;
+	cout << "Time taken: " << timeInMinutes << " minutes" << endl;
 
     /*
 	// detect keypoints
@@ -214,7 +212,7 @@ int main(int argc, char** argv)
 
 	// show detected (drawn) keypoints
 	imshow("Keypoints 1", imgKeypoints1 );
-
-    waitKey(0);
 	*/
+    waitKey(0);
+	
 }
