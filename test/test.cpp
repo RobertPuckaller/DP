@@ -8,13 +8,15 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/nonfree/nonfree.hpp"
 #include "opencv2/ml/ml.hpp"
+#include "timer.h"
+#include "progressor.h"
 
 using namespace std;
 using namespace cv;
 
 int main(int argc, char** argv)
 {
-	clock_t startTime = clock();
+	Timer t("Image classification");
 
     if (argc != 3)
     {
@@ -43,8 +45,8 @@ int main(int argc, char** argv)
 		train.push_back(path + file_name + ".jpg");
 		train_evaluation.push_back(contains);
 	}
-
 	file.close();
+	t.report("reading train data");
 
 	// read validate file
 	file.open(argv[2], ios::in);
@@ -58,9 +60,9 @@ int main(int argc, char** argv)
 		if (count > max_images_val) break;
 		val.push_back(path + file_name + ".jpg");
 		val_evaluation.push_back(contains);
-	}
-
+	}	
 	file.close();
+	t.report("reading validation data");
 
 	FastFeatureDetector detector(15);
 	vector<KeyPoint> keypoints;
@@ -70,10 +72,9 @@ int main(int argc, char** argv)
 	Mat training_descriptors;
 
 	// computing descriptors
-	cout << "Computing descriptors..." << endl;
-	for (size_t pos = 0; pos < train.size(); pos++)
+	Progressor progress(3);
+	for (size_t pos = 0; pos < 3; pos++)
 	{
-		cout << pos << " ";
 		img = imread(train[pos]);
 		if (img.empty())
 		{
@@ -83,25 +84,29 @@ int main(int argc, char** argv)
 		detector.detect(img, keypoints); // detect keypoints
 		extractor->compute(img, keypoints, descriptors); // compute descriptors
 		training_descriptors.push_back(descriptors);
+		progress.reportNext("computing descriptors...");
 	}
-
-	cout << endl << training_descriptors.rows << endl;
+	t.report("computing descriptors");
 
 	ofstream myfile;
-	myfile.open("training_descriptors.txt");
+	myfile.open("training_descriptors.out");
 	myfile << training_descriptors;
 	myfile.close();
+	t.report("writing training descriptors");
 
 	// creating vocabulary
-	cout << "Clustering..." << endl;
+	cout << "clustering...";
 	BOWKMeansTrainer bowtrainer(1000); // num clusters
 	bowtrainer.add(training_descriptors);
 	Mat vocabulary = bowtrainer.cluster();
+	cout << "                \r" << flush;
+	t.report("clustering");
 
 	// ofstream myfile;
-	myfile.open("vocabulary.txt");
+	myfile.open("vocabulary.out");
 	myfile << vocabulary;
 	myfile.close();
+	t.report("writing vocabulary");
 	
 	// creating histograms
 	Mat response_hist;
@@ -111,10 +116,9 @@ int main(int argc, char** argv)
 	BOWImgDescriptorExtractor bowide(extractor, matcher);
 	bowide.setVocabulary(vocabulary);
 
-	cout << "Creating histograms..." << endl;
-	for (size_t pos = 0; pos < train.size(); pos++)
+	progress.reset(3);
+	for (size_t pos = 0; pos < 3; pos++)
 	{
-		cout << pos << " ";
 		img = imread(train[pos]);
 		if (img.empty())
 		{
@@ -129,16 +133,20 @@ int main(int argc, char** argv)
 			classes_names.push_back(train_evaluation[pos]);
 		}
 		classes_training_data[train_evaluation[pos]].push_back(response_hist);
+		progress.reportNext("creating histograms...");
 	}
-	cout << endl;
+	cout << "                \r" << flush;
+	t.report("creating histograms");
 
-	myfile.open("training_data1.txt");
+	myfile.open("training_data1.out");
 	myfile << classes_training_data["1"];
 	myfile.close();
+	t.report("writing class 1 histograms");
 
-	myfile.open("training_data-1.txt");
+	myfile.open("training_data-1.out");
 	myfile << classes_training_data["-1"];
 	myfile.close();
+	t.report("writing class -1 histograms");
 
 	map<string,CvSVM> classes_classifiers;
 
@@ -168,9 +176,11 @@ int main(int argc, char** argv)
 		if (samples.rows == 0) continue; //phantom class?!
 		classes_classifiers[class_].train(samples_32f,labels);		
 	}
+	t.report("classifier training");
 
 	// classification
-	myfile.open("results.txt");
+	myfile.open("results.out");
+	progress.reset(val.size());
 	for (size_t pos = 0; pos < val.size(); pos++)
 	{
 		myfile << pos << endl;
@@ -188,13 +198,9 @@ int main(int argc, char** argv)
 			myfile << "class: " << (*it).first << ", response: " << res << endl;
 		}
 		myfile << "------------------------" << endl;
+		progress.reportNext("writing results...");
 	}
-	
-	clock_t endTime = clock();
-	clock_t clockTicksTaken = endTime - startTime;
-	double timeInMinutes = (clockTicksTaken / (double) CLOCKS_PER_SEC) / 60;
-	cout << "Time taken: " << timeInMinutes << " minutes" << endl;
-
+	t.report("writing results");
     /*
 	// detect keypoints
 	FastFeatureDetector detector(15);
